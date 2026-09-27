@@ -1,54 +1,63 @@
+
 import streamlit as st
 import pandas as pd
 import joblib
-# Load model dan preprocessing
+
+# ------------------------------------------------------------
+# Load model & preprocessing hasil Modul 2 & 3
+# ------------------------------------------------------------
 rf_model = joblib.load("random_forest_model.pkl")
+imputer = joblib.load("median_imputer.pkl")
 feature_columns = joblib.load("feature_columns.pkl")
-st.title("Student Performance Prediction")
-st.write(
- "Aplikasi demo Machine Learning menggunakan "
- "Random Forest Classifier."
-)
-# Input pengguna
+
+st.title("Prediksi Final Grade Mahasiswa")
+st.write("Aplikasi ini memprediksi `final_grade` (A/B/C/D/F) berdasarkan data akademik dan kebiasaan belajar mahasiswa.")
+
+st.header("Input Data Mahasiswa")
+
 gender = st.selectbox("Gender", ["Male", "Female"])
-previous_grade = st.number_input(
- "Previous Grade", min_value=60.0, max_value=90.0, value=78.0
-)
-extracurricular = st.number_input(
- "Extracurricular Activities", min_value=0, max_value=3, value=1
-)
-parental_support = st.selectbox(
- "Parental Support", ["Low", "Medium", "High"]
-)
-study_hours = st.number_input(
- "Study Hours", min_value=0.0, max_value=5.0, value=2.5
-)
-attendance = st.number_input(
- "Attendance (%)", min_value=50.0, max_value=100.0, value=76.0
-)
-online_classes = st.selectbox(
- "Online Classes Taken", ["No", "Yes"]
-)
-if st.button("Predict"):
- gender_mapping = {"Male": 0, "Female": 1}
- parental_mapping = {"Low": 0, "Medium": 1, "High": 2}
- online_mapping = {"No": 0, "Yes": 1}
- input_data = pd.DataFrame([{
- "Gender": gender_mapping[gender],
- "PreviousGrade": previous_grade,
- "ExtracurricularActivities": extracurricular,
- "ParentalSupport": parental_mapping[parental_support],
- "Study Hours": study_hours,
- "Attendance (%)": attendance,
- "Online Classes Taken": online_mapping[online_classes]
- }])
- # Pastikan urutan feature sama seperti training
- input_data = input_data[feature_columns]
- # Gunakan imputer yang sudah di-fit pada training data
- input_imputed = pd.DataFrame(
- imputer.transform(input_data),
- columns=feature_columns
- )
- prediction = rf_model.predict(input_imputed)
- st.subheader("Hasil Prediksi")
- st.write(f"Predicted Status: {prediction[0]}")
+study_time_hours = st.number_input("Study Time (jam/hari)", min_value=0.0, max_value=24.0, value=3.5, step=0.1)
+attendance_percent = st.number_input("Attendance (%)", min_value=0.0, max_value=100.0, value=85.0, step=0.1)
+sleep_hours = st.number_input("Sleep Hours", min_value=0.0, max_value=24.0, value=7.0, step=0.1)
+parental_education = st.selectbox("Parental Education", ["None", "High School", "Bachelors", "Masters", "PhD"])
+internet_access = st.selectbox("Internet Access", ["Yes", "No"])
+extracurricular_activities = st.selectbox("Extracurricular Activities", ["Yes", "No"])
+part_time_job = st.selectbox("Part-time Job", ["Yes", "No"])
+previous_grade = st.number_input("Previous Grade", min_value=0.0, max_value=100.0, value=75.0, step=0.1)
+
+if st.button("Prediksi"):
+    # --------------------------------------------------------
+    # Encoding harus identik dengan Modul 2 (Binary Mapping & Ordinal Encoding)
+    # --------------------------------------------------------
+    input_dict = {
+        "gender": {"Male": 0, "Female": 1}[gender],
+        "study_time_hours": study_time_hours,
+        "attendance_percent": attendance_percent,
+        "sleep_hours": sleep_hours,
+        "parental_education": {"None": 0, "High School": 1, "Bachelors": 2, "Masters": 3, "PhD": 4}[parental_education],
+        "internet_access": {"No": 0, "Yes": 1}[internet_access],
+        "extracurricular_activities": {"No": 0, "Yes": 1}[extracurricular_activities],
+        "part_time_job": {"No": 0, "Yes": 1}[part_time_job],
+        "previous_grade": previous_grade,
+    }
+
+    # Create DataFrame directly with feature_columns to ensure correct order and presence
+    input_df = pd.DataFrame([input_dict], columns=feature_columns)
+
+    # Imputer yang sama dengan training (tidak di-fit ulang)
+    input_imputed = pd.DataFrame(
+        imputer.transform(input_df),
+        columns=feature_columns
+    )
+
+    prediction = rf_model.predict(input_imputed)[0]
+    st.success(f"Prediksi Final Grade: **{prediction}**")
+
+    proba = rf_model.predict_proba(input_imputed)[0]
+    proba_df = pd.DataFrame({
+        "Kelas": rf_model.classes_,
+        "Probabilitas": proba
+    }).sort_values("Probabilitas", ascending=False)
+
+    st.subheader("Probabilitas Tiap Kelas")
+    st.dataframe(proba_df, hide_index=True)
